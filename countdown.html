@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Custom LXG Countdown</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,700;1,700&family=Orbitron:wght@800;900&display=swap');
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+  }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Chakra Petch', sans-serif;
+    position: relative;
+  }
+
+  video#bgVideo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1920px;
+    height: 1080px;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  .overlay-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .hud-wrapper {
+    position: absolute;
+    top: 42px;
+    right: 54px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .status-badge {
+    background: linear-gradient(90deg, rgba(15, 15, 20, 0.9), rgba(45, 32, 5, 0.95));
+    border: 2px solid #ffbe0b;
+    border-right: 6px solid #ffbe0b;
+    padding: 8px 24px;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(255, 190, 11, 0.45);
+    clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .timer-box {
+    background: linear-gradient(135deg, rgba(12, 12, 16, 0.92), rgba(28, 22, 8, 0.94));
+    border: 2px solid #ffd60a;
+    padding: 14px 34px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 18px rgba(255, 214, 10, 0.25);
+    clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #timerDisplay {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 64px;
+    font-weight: 900;
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(255, 214, 10, 0.9), 0 0 28px rgba(255, 158, 0, 0.7);
+    letter-spacing: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .urgent #timerDisplay {
+    color: #ff4d4d;
+    text-shadow: 0 0 14px rgba(255, 77, 77, 0.95), 0 0 32px rgba(255, 0, 0, 0.8);
+    animation: pulseUrgent 0.8s infinite alternate;
+  }
+
+  @keyframes pulseUrgent {
+    from { transform: scale(1); }
+    to { transform: scale(1.04); }
+  }
+
+  .control-panel {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    z-index: 99;
+    background: rgba(15, 15, 20, 0.92);
+    border: 1px solid #ffbe0b;
+    padding: 14px 18px;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    color: #fff;
+    font-size: 15px;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  body:hover .control-panel,
+  .control-panel.visible {
+    opacity: 1;
+  }
+
+  .control-panel input {
+    background: #1e1e26;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .control-panel button {
+    background: #ffbe0b;
+    color: #000;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .control-panel button.secondary {
+    background: #333;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+  <video id="bgVideo" src="gemini_generated_video_e96564d0.mp4" autoplay loop muted playsinline></video>
+  <div class="overlay-vignette"></div>
+
+  <div class="hud-wrapper" id="hudWrapper">
+    <div class="status-badge" id="statusLabel">TRẬN ĐẤU BẮT ĐẦU SAU</div>
+    <div class="timer-box">
+      <div id="timerDisplay">30:00</div>
+    </div>
+  </div>
+
+  <div class="control-panel" id="controlPanel">
+    <span>Phút đếm lùi:</span>
+    <input type="number" id="minutesInput" value="30" min="1" max="180" style="width: 65px;">
+    <button onclick="startCountdownMinutes()">Chạy phút</button>
+    <span>| Giờ:</span>
+    <input type="time" id="targetTimeInput" step="1">
+    <button onclick="startCountdownTarget()">Đếm tới giờ</button>
+    <button class="secondary" onclick="toggleHudPosition()">Đổi góc đồng hồ</button>
+  </div>
+
+<script>
+  let timerInterval = null;
+  let remainingSeconds = 1800;
+  let positionIndex = 0;
+
+  const positions = [
+    { top: '42px', right: '54px', bottom: 'auto', left: 'auto', align: 'flex-end' },
+    { top: '42px', left: '54px', bottom: 'auto', right: 'auto', align: 'flex-start' },
+    { bottom: '42px', right: '54px', top: 'auto', left: 'auto', align: 'flex-end' },
+    { bottom: '42px', left: '54px', top: 'auto', right: 'auto', align: 'flex-start' }
+  ];
+
+  const VIDEO_MAP = {
+    '1': 'gemini_generated_video_e96564d0.mp4',
+    '2': 'gemini_generated_video_e2ee4896.mp4'
+  };
+
+  function apDungVideo(tenFile) {
+    if (!tenFile) return;
+    const videoEl = document.getElementById('bgVideo');
+    if (!videoEl) return;
+    if (videoEl.getAttribute('src') === tenFile) return;
+    videoEl.src = tenFile;
+    videoEl.load();
+    videoEl.play().catch(() => {});
+  }
+
+  const vParam = new URLSearchParams(window.location.search).get('v');
+  if (VIDEO_MAP[vParam]) {
+    apDungVideo(VIDEO_MAP[vParam]);
+  } else {
+    const kenh = new BroadcastChannel('doi_video_lxg');
+    kenh.onmessage = (event) => {
+      apDungVideo(event.data && event.data.file);
+    };
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'video_hien_tai') {
+        apDungVideo(event.newValue);
+      }
+    });
+    async function dongBoVideoTuServer() {
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.video) {
+          apDungVideo(data.video);
+        }
+      } catch (err) {}
+    }
+    dongBoVideoTuServer();
+    setInterval(dongBoVideoTuServer, 500);
+  }
+
+  function formatTime(totalSec) {
+    if (totalSec <= 0) return '00:00';
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+  }
+
+  function updateUI() {
+    const display = document.getElementById('timerDisplay');
+    const wrapper = document.getElementById('hudWrapper');
+    const label = document.getElementById('statusLabel');
+
+    if (remainingSeconds <= 0) {
+      display.textContent = '00:00';
+      label.textContent = 'CHUẨN BỊ VÀO TRẬN!';
+      wrapper.classList.add('urgent');
+      clearInterval(timerInterval);
+      return;
+    }
+
+    if (remainingSeconds <= 30) {
+      wrapper.classList.add('urgent');
+    } else {
+      wrapper.classList.remove('urgent');
+      label.textContent = 'TRẬN ĐẤU BẮT ĐẦU SAU';
+    }
+
+    display.textContent = formatTime(remainingSeconds);
+  }
+
+  function startCountdownMinutes() {
+    clearInterval(timerInterval);
+    const mins = parseInt(document.getElementById('minutesInput').value, 10) || 30;
+    remainingSeconds = mins * 60;
+    updateUI();
+    timerInterval = setInterval(() => {
+      remainingSeconds--;
+      updateUI();
+    }, 1000);
+  }
+
+  function startCountdownTarget() {
+    const timeVal = document.getElementById('targetTimeInput').value;
+    if (!timeVal) return;
+    clearInterval(timerInterval);
+
+    const [h, m, s] = timeVal.split(':').map(Number);
+    const now = new Date();
+    const target = new Date();
+    target.setHours(h, m, s || 0, 0);
+    if (target <= now) {
+      target.setDate(target.getDate() + 1);
+    }
+
+    const tick = () => {
+      const diff = Math.floor((target - new Date()) / 1000);
+      remainingSeconds = Math.max(0, diff);
+      updateUI();
+    };
+
+    tick();
+    timerInterval = setInterval(tick, 1000);
+  }
+
+  function toggleHudPosition() {
+    positionIndex = (positionIndex + 1) % positions.length;
+    const pos = positions[positionIndex];
+    const wrapper = document.getElementById('hudWrapper');
+    wrapper.style.top = pos.top;
+    wrapper.style.right = pos.right;
+    wrapper.style.bottom = pos.bottom;
+    wrapper.style.left = pos.left;
+    wrapper.style.alignItems = pos.align;
+  }
+
+  startCountdownMinutes();
+</script>
+</body>
+</html>

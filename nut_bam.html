@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Nút Đổi Video</title>
+<style>
+  body { background: #141418; color: #fff; font-family: sans-serif; display: flex; gap: 16px; padding: 24px; align-items: center; }
+  button { padding: 16px 28px; font-size: 18px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; background: #ffbe0b; color: #000; }
+  button.v2 { background: #38bdf8; color: #000; }
+  #st { font-size: 15px; color: #a3e635; }
+</style>
+</head>
+<body>
+  <button onclick="setVid('gemini_generated_video_e96564d0.mp4', 'Video 1')">Video 1</button>
+  <button class="v2" onclick="setVid('gemini_generated_video_e2ee4896.mp4', 'Video 2')">Video 2</button>
+  <span id="st"></span>
+<script>
+  const ch = new BroadcastChannel('doi_video_lxg');
+  async function setVid(file, name) {
+    localStorage.setItem('video_hien_tai', file);
+    ch.postMessage({ file });
+    try {
+      await fetch('/api/set-video?file=' + encodeURIComponent(file), { cache: 'no-store' });
+      st.textContent = 'Đang chạy: ' + name;
+    } catch {
+      st.textContent = 'Chưa bật server.py';
+    }
+  }
+</script>
+</body>
+</html>
